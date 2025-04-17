@@ -1,5 +1,7 @@
-from flask import Flask, render_template, request, g, redirect, session, url_for, flash
+from flask import Flask, render_template, request, g, redirect, session, url_for, flash, send_file
 from datetime import datetime
+import pandas as pd
+from io import BytesIO
 import sqlite3
 import random
 import string
@@ -182,10 +184,14 @@ def edit_initiative(initiative_id):
     login.get_user_info()
     if not login.is_valid:
         return redirect(url_for('login'))
-
+    
     db = get_db()
     cur = db.execute('SELECT * FROM initiatives WHERE id = ?', [initiative_id])
     initiative = cur.fetchone()
+
+    if not (login.is_admin or initiative['last_edited_by'] == login.user):
+        flash("You don't have permission to edit this initiative.")
+        return redirect(url_for('initiatives'))
 
     if request.method == 'POST':
         print("ISSUE CODE:", request.form.get('issue_code'))
@@ -384,6 +390,29 @@ def new_user():
         else:
             flash('Correct error: {}'.format(message))
             return render_template('new_user.html', active_menu='users', user=user, login=login)
+        
+@app.route('/export_initiatives')
+def export_initiatives():
+    login = UserPass(session.get('user'))
+    login.get_user_info()
+
+    if not login.is_valid:
+        return redirect(url_for('login'))
+
+    db = get_db()
+    cur = db.execute('SELECT * FROM initiatives ORDER BY id DESC')
+    initiatives = cur.fetchall()
+
+    df = pd.DataFrame([dict(row) for row in initiatives])
+    output = BytesIO()
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        df.to_excel(writer, index=False, sheet_name='Initiatives')
+    output.seek(0)
+
+    now = datetime.now().strftime('%Y%m%d_%H%M%S')
+    filename = f"initiatives_{now}.xlsx"
+
+    return send_file(output, as_attachment=True, download_name=filename, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 if __name__ == '__main__':
     app.run(debug=True)

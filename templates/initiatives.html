@@ -7,9 +7,14 @@
 {% block content %}
 <div class="container mx-auto px-4">
     {% if login.is_valid %}
-    <a href="{{ url_for('new_initiative') }}" class="mb-4 inline-block bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
-        + Add New Initiative
-    </a>
+    <div class="flex justify-between items-center mb-4">
+        <a href="{{ url_for('new_initiative') }}" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">
+            + Add New Initiative
+        </a>
+        <a href="{{ url_for('export_initiatives') }}" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">
+            Export to Excel
+        </a>
+    </div>    
     {%endif%}
 
     <table class="w-full table-auto border border-collapse text-center">
@@ -70,7 +75,9 @@
                 {% if login.is_valid %}
                 <td class="px-4 py-2">
                     <div class="flex flex-col items-center gap-1">
-                        <a href="{{ url_for('edit_initiative', initiative_id=initiative.id) }}" class="text-blue-600 hover:underline">Edit</a>
+                        {% if login.is_admin or initiative.last_edited_by == login.user %}
+                            <a href="{{ url_for('edit_initiative', initiative_id=initiative.id) }}" class="text-blue-600 hover:underline">Edit</a>
+                        {% endif %}
                         {% if login.is_admin %}
                         <button class="text-red-600 hover:underline"
                                 onclick="confirmDelete({{ initiative.id }}, '{{ initiative.project_name }}')">Delete</button>
