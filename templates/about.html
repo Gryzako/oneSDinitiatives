@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block title %}About the Project{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl mx-auto py-10 px-4">
+    <h1 class="text-3xl font-bold text-center mb-6">DSV Service Desk Initiatives</h1>
+
+    <p class="text-gray-700 text-lg mb-6">
+        This web app was created to gather and track all initiatives handled within the DSV Service Desk team.
+        Here you can browse ongoing projects, monitor progress, and stay aligned with what's happening.
+    </p>
+
+    <p class="text-gray-700 mb-4">
+        If you need an account, forgot your password, or need to remove initiative — please contact one of the administrators listed below.
+    </p>
+
+    <div class="bg-gray-100 p-4 rounded-lg shadow-sm mb-6">
+        <h2 class="text-xl font-semibold mb-2">Admins</h2>
+        <ul class="list-disc list-inside text-gray-800">
+            <li>Rafał Kowalik</li>
+            <li>Michał Grysiński</li>
+        </ul>
+    </div>
+
+    <p class="text-sm text-gray-500 text-center">
+        Release version 1.0.0 Date 16.04.2025
+    </p>
+</div>
+{% endblock %}
