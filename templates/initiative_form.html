@@ -1,0 +1,187 @@
+{% extends "base.html" %}
+
+{% macro date_field(name, label, i, end, hint) %}
+{% set raw = i[name] if i else '' %}
+{% set iso = i[name[:-5] ~ '_iso'] if i else '' %}
+{% set precision = i[name[:-5] ~ '_precision'] if i else none %}
+<div>
+    <label for="{{ name }}" class="block text-sm font-medium text-slate-700 mb-1">{{ label }}</label>
+    {% if raw and precision != 'day' %}
+    {# Free-text or month-only value (e.g. "June 2025", "TBD") - keep it editable as text #}
+    <input type="text" id="{{ name }}" name="{{ name }}" value="{{ raw }}" placeholder="dd.mm.yyyy">
+    {% if precision == 'month' %}
+    <p class="text-xs text-slate-500 mt-1">Read as {{ 'end' if end else 'start' }} of month. Use dd.mm.yyyy for an exact date.</p>
+    {% else %}
+    <p class="text-xs text-amber-600 mt-1">Not recognised as a date – use dd.mm.yyyy so overdue tracking works.</p>
+    {% endif %}
+    {% else %}
+    <input type="date" id="{{ name }}" name="{{ name }}" value="{{ iso }}">
+    {% if hint %}<p class="text-xs text-slate-500 mt-1">{{ hint }}</p>{% endif %}
+    {% endif %}
+</div>
+{% endmacro %}
+
+{% block content %}
+{% set editing = i is not none %}
+<a href="{{ url_for('initiative_detail', initiative_id=i.id) if editing else url_for('initiatives') }}" class="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-brand mb-4">&larr; Back</a>
+
+<div class="max-w-3xl">
+    <h1 class="text-2xl font-semibold tracking-tight mb-1">{{ 'Edit initiative' if editing else 'New initiative' }}</h1>
+    <p class="text-sm text-slate-500 mb-6">Fields marked <span class="text-red-500">*</span> are required. Every change is recorded in the initiative history.</p>
+
+    <form method="post" class="space-y-6" id="initForm">
+        <section class="bg-white border border-slate-200 rounded-xl p-6 space-y-5">
+            <div>
+                <label for="project_name" class="block text-sm font-medium text-slate-700 mb-1">Project name <span class="text-red-500">*</span></label>
+                <input type="text" id="project_name" name="project_name" required maxlength="120" value="{{ i.project_name if editing else '' }}" placeholder="e.g. ServiceNow knowledge base clean-up" autofocus>
+            </div>
+            <div>
+                <label for="description" class="block text-sm font-medium text-slate-700 mb-1">Description</label>
+                <textarea id="description" name="description" rows="4" placeholder="Goal, scope and expected benefit">{{ i.description if editing and i.description else '' }}</textarea>
+            </div>
+            <div class="grid sm:grid-cols-2 gap-5">
+                <div>
+                    <label for="issue_code" class="block text-sm font-medium text-slate-700 mb-1">Issue code</label>
+                    <select id="issue_code" name="issue_code">
+                        <option value="">— Select —</option>
+                        {% for code in ISSUE_CODES %}
+                        <option value="{{ code }}" {{ 'selected' if editing and i.issue_code == code }}>{{ code }}</option>
+                        {% endfor %}
+                        {% if editing and i.issue_code and i.issue_code not in ISSUE_CODES %}
+                        <option value="{{ i.issue_code }}" selected>{{ i.issue_code }}</option>
+                        {% endif %}
+                    </select>
+                </div>
+                <div>
+                    <label for="priority" class="block text-sm font-medium text-slate-700 mb-1">Priority</label>
+                    <select id="priority" name="priority">
+                        {% for value, label in PRIORITIES %}
+                        <option value="{{ value }}" {{ 'selected' if (editing and i.priority == value) or (not editing and value == 3) }}>{{ value }} – {{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+        </section>
+
+        <section class="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
+            <div class="flex items-center justify-between">
+                <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wide">Responsible</h2>
+                <span id="peopleCount" class="text-xs text-slate-500"></span>
+            </div>
+            <p class="text-xs text-slate-500 -mt-2">Responsible people with an account can post updates and edit this initiative.</p>
+            <input type="search" id="peopleSearch" placeholder="Filter people…" oninput="filterPeople(this.value)">
+            <div id="peopleList" class="grid sm:grid-cols-2 lg:grid-cols-3 gap-1 max-h-60 overflow-y-auto border border-slate-200 rounded-lg p-2">
+                {% for p in people %}
+                <label class="person flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-slate-50 cursor-pointer text-sm" data-name="{{ (p.full_name ~ ' ' ~ p.name)|lower }}">
+                    <input type="checkbox" name="responsible_user" value="{{ p.name }}" class="rounded" {{ 'checked' if p.name in selected_people }} onchange="countPeople()">
+                    <span class="w-6 h-6 shrink-0 rounded-full bg-slate-200 text-slate-700 text-[10px] font-semibold flex items-center justify-center uppercase">{{ p.full_name[:1] }}</span>
+                    <span class="truncate">{{ p.full_name }}</span>
+                </label>
+                {% endfor %}
+            </div>
+            <div class="rounded-lg border border-dashed border-slate-300 p-3">
+                <label class="flex items-center gap-2 text-sm font-medium text-slate-700 cursor-pointer">
+                    <input type="checkbox" id="otherOn" name="responsible_other_on" value="1" class="rounded" {{ 'checked' if other_people }} onchange="toggleOther()">
+                    Owner not on the list
+                </label>
+                <div id="otherBox" class="{{ '' if other_people else 'hidden' }} mt-2">
+                    <input type="text" id="responsible_other" name="responsible_other" value="{{ other_people }}" placeholder="e.g. Voice Team, John Smith">
+                    <p class="text-xs text-slate-500 mt-1">Separate several names with commas.</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="bg-white border border-slate-200 rounded-xl p-6 space-y-5">
+            <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wide">When</h2>
+            <div class="grid sm:grid-cols-2 gap-5">
+                {{ date_field('start_date', 'Start date', i, false, '') }}
+                {{ date_field('eta_date', 'ETA', i, true, 'Planned completion date.') }}
+            </div>
+        </section>
+
+        <section class="bg-white border border-slate-200 rounded-xl p-6 space-y-5">
+            <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wide">Status</h2>
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {% set status_options = STATUSES if not editing or i.status in STATUSES|map('first')|list else STATUSES + [(i.status, i.status_label)] %}
+                {% for value, label in status_options %}
+                <label class="cursor-pointer">
+                    <input type="radio" name="status" value="{{ value }}" class="peer sr-only"
+                           {{ 'checked' if (editing and i.status == value) or (not editing and loop.first) }}>
+                    <span class="block text-center text-sm border border-slate-300 rounded-lg py-2 peer-checked:border-brand peer-checked:bg-brand-50 peer-checked:text-brand-700 peer-checked:font-medium hover:border-slate-400">{{ label }}</span>
+                </label>
+                {% endfor %}
+            </div>
+            {% if not editing %}
+            <div>
+                <label for="first_update" class="block text-sm font-medium text-slate-700 mb-1">First update <span class="text-slate-400 font-normal">(optional)</span></label>
+                <textarea id="first_update" name="first_update" rows="3" placeholder="Where does it stand today?"></textarea>
+            </div>
+            {% else %}
+            <p class="text-xs text-slate-500">Progress notes are posted as <a href="{{ url_for('initiative_detail', initiative_id=i.id) }}#updates" class="text-brand hover:underline">updates</a> on the initiative page.</p>
+            {% endif %}
+        </section>
+
+        {% if metric_defs %}
+        <section id="impact" class="bg-white border border-slate-200 rounded-xl p-6 space-y-4">
+            <div>
+                <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wide">Impact</h2>
+                <p class="text-xs text-slate-500 mt-1">Fill in what applies – estimates are fine. Leave empty if not relevant.</p>
+            </div>
+            <div class="grid sm:grid-cols-2 gap-5">
+                {% for d in metric_defs %}
+                {% set v = metric_values.get(d.id) %}
+                <div>
+                    <label class="block text-sm font-medium text-slate-700 mb-1">{{ d.name }}{% if d.unit %} <span class="text-slate-400 font-normal">({{ d.unit }})</span>{% endif %}</label>
+                    {% if d.kind == 'before_after' %}
+                    <div class="flex items-center gap-2">
+                        <input type="text" inputmode="decimal" name="metric_{{ d.id }}_before" value="{{ fmt_num(v.value_before) if v and v.value_before is not none else '' }}" placeholder="Before">
+                        <span class="text-slate-400">&rarr;</span>
+                        <input type="text" inputmode="decimal" name="metric_{{ d.id }}_after" value="{{ fmt_num(v.value_after) if v and v.value_after is not none else '' }}" placeholder="After">
+                    </div>
+                    {% else %}
+                    <input type="text" inputmode="decimal" name="metric_{{ d.id }}_after" value="{{ fmt_num(v.value_after) if v and v.value_after is not none else '' }}">
+                    {% endif %}
+                    {% if d.help_text %}<p class="text-xs text-slate-500 mt-1">{{ d.help_text }}</p>{% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+        {% endif %}
+
+        <div class="flex justify-end gap-2 sticky bottom-0 bg-slate-50/90 backdrop-blur py-3">
+            <a href="{{ url_for('initiative_detail', initiative_id=i.id) if editing else url_for('initiatives') }}" class="btn btn-secondary">Cancel</a>
+            <button type="submit" class="btn btn-primary">{{ 'Save changes' if editing else 'Create initiative' }}</button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function filterPeople(q) {
+        q = q.trim().toLowerCase();
+        document.querySelectorAll('.person').forEach(p => p.style.display = (!q || p.dataset.name.includes(q)) ? '' : 'none');
+    }
+    function countPeople() {
+        const n = document.querySelectorAll('input[name=responsible_user]:checked').length;
+        document.getElementById('peopleCount').textContent = n ? n + ' selected' : '';
+    }
+    function toggleOther() {
+        const on = document.getElementById('otherOn').checked;
+        document.getElementById('otherBox').classList.toggle('hidden', !on);
+        if (on) document.getElementById('responsible_other').focus();
+    }
+    countPeople();
+
+    // Keep selected people on top
+    const list = document.getElementById('peopleList');
+    Array.from(list.children).filter(l => l.querySelector('input').checked).reverse().forEach(l => list.prepend(l));
+
+    // Warn before leaving with unsaved changes
+    let dirty = false;
+    const form = document.getElementById('initForm');
+    form.addEventListener('input', () => dirty = true);
+    form.addEventListener('submit', () => dirty = false);
+    window.addEventListener('beforeunload', e => { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
+</script>
+{% endblock %}

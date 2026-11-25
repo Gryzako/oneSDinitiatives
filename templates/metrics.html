@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+
+{% macro metric_fields(d) %}
+<div class="grid sm:grid-cols-6 gap-3">
+    <div class="sm:col-span-3">
+        <label class="block text-xs font-medium text-slate-600 mb-1">Name</label>
+        <input type="text" name="name" value="{{ d.name if d else '' }}" required placeholder="e.g. Hours saved / month">
+    </div>
+    <div>
+        <label class="block text-xs font-medium text-slate-600 mb-1">Unit</label>
+        <input type="text" name="unit" value="{{ d.unit if d and d.unit else '' }}" placeholder="h, %, €…">
+    </div>
+    <div class="sm:col-span-2">
+        <label class="block text-xs font-medium text-slate-600 mb-1">Type</label>
+        <select name="kind">
+            {% for value, label in METRIC_KINDS %}
+            <option value="{{ value }}" {{ 'selected' if d and d.kind == value }}>{{ label }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="sm:col-span-4">
+        <label class="block text-xs font-medium text-slate-600 mb-1">Help text <span class="text-slate-400 font-normal">(shown under the field)</span></label>
+        <input type="text" name="help_text" value="{{ d.help_text if d and d.help_text else '' }}" placeholder="How should people estimate this?">
+    </div>
+    <label class="sm:col-span-2 flex items-center gap-2 text-sm text-slate-600 sm:pt-6">
+        <input type="checkbox" name="show_total" value="1" class="rounded" {{ 'checked' if d and d.show_total }}>
+        Show total on dashboard
+    </label>
+</div>
+{% endmacro %}
+
+{% block content %}
+<div class="mb-6">
+    <h1 class="text-2xl font-semibold tracking-tight">Impact metrics</h1>
+    <p class="text-sm text-slate-500 mt-1 max-w-2xl">
+        Define which results people can record for an initiative. <b>Single value</b> metrics (e.g. hours saved) can be summed on the dashboard;
+        <b>Before / after</b> metrics (e.g. CSAT) show the improvement.
+    </p>
+</div>
+
+<div class="space-y-3 mb-8">
+    {% for d in defs %}
+    <details class="bg-white border border-slate-200 rounded-xl {{ 'opacity-60' if not d.is_active }}">
+        <summary class="flex items-center justify-between gap-4 px-5 py-4 cursor-pointer list-none">
+            <div class="flex items-center gap-3 min-w-0">
+                <div class="flex flex-col">
+                    <form method="post" action="{{ url_for('metric_action', metric_id=d.id, action='up') }}"><button class="text-slate-400 hover:text-brand leading-none text-xs" title="Move up" {{ 'disabled' if loop.first }}>▲</button></form>
+                    <form method="post" action="{{ url_for('metric_action', metric_id=d.id, action='down') }}"><button class="text-slate-400 hover:text-brand leading-none text-xs" title="Move down" {{ 'disabled' if loop.last }}>▼</button></form>
+                </div>
+                <div class="min-w-0">
+                    <div class="font-medium truncate">{{ d.name }} {% if d.unit %}<span class="text-slate-400 font-normal">({{ d.unit }})</span>{% endif %}</div>
+                    <div class="text-xs text-slate-500">
+                        {{ dict(METRIC_KINDS)[d.kind] }}{{ ' · total on dashboard' if d.show_total }} · used in {{ d.used }} initiative{{ 's' if d.used != 1 }}
+                        {% if not d.is_active %}· <span class="text-amber-600 font-medium">inactive</span>{% endif %}
+                    </div>
+                </div>
+            </div>
+            <span class="text-xs text-brand shrink-0">Edit ▾</span>
+        </summary>
+        <div class="border-t border-slate-100 px-5 py-4 space-y-4">
+            <form method="post" action="{{ url_for('metrics') }}" class="space-y-3">
+                <input type="hidden" name="id" value="{{ d.id }}">
+                {{ metric_fields(d) }}
+                <div class="flex justify-end"><button class="btn btn-primary">Save</button></div>
+            </form>
+            <div class="flex gap-2 pt-3 border-t border-slate-100">
+                <form method="post" action="{{ url_for('metric_action', metric_id=d.id, action='toggle') }}">
+                    <button class="btn btn-secondary !py-1 !px-3">{{ 'Deactivate' if d.is_active else 'Activate' }}</button>
+                </form>
+                {% if not d.used %}
+                <form method="post" action="{{ url_for('metric_action', metric_id=d.id, action='delete') }}" onsubmit="return confirm('Delete metric {{ d.name|e }}?')">
+                    <button class="btn btn-secondary !py-1 !px-3 !text-red-600">Delete</button>
+                </form>
+                {% else %}
+                <span class="text-xs text-slate-500 self-center">Used metrics can only be deactivated – their values are kept.</span>
+                {% endif %}
+            </div>
+        </div>
+    </details>
+    {% else %}
+    <p class="text-sm text-slate-500">No metrics defined yet.</p>
+    {% endfor %}
+</div>
+
+<section class="bg-white border border-slate-200 rounded-xl p-6 max-w-4xl">
+    <h2 class="font-semibold mb-4">Add metric</h2>
+    <form method="post" action="{{ url_for('metrics') }}" class="space-y-3">
+        {{ metric_fields(none) }}
+        <div class="flex justify-end"><button class="btn btn-primary">+ Add metric</button></div>
+    </form>
+</section>
+{% endblock %}

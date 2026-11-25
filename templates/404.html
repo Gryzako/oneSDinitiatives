@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="text-center py-20">
+    <div class="text-6xl font-semibold text-brand">404</div>
+    <p class="mt-4 text-slate-600">This page or initiative does not exist (maybe it was deleted).</p>
+    <a href="{{ url_for('initiatives') }}" class="btn btn-primary mt-6">Back to initiatives</a>
+</div>
+{% endblock %}

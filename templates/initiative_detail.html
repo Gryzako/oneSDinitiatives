@@ -1,0 +1,223 @@
+{% extends "base.html" %}
+{% from "_macros.html" import status_badge, eta_badge, priority_badge, TEXT with context %}
+
+{% block content %}
+<a href="{{ url_for('initiatives') }}" class="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-brand mb-4">&larr; All initiatives</a>
+
+<div class="bg-white border border-slate-200 rounded-xl p-6 mb-6">
+    <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+        <div>
+            <div class="flex flex-wrap items-center gap-2 mb-2">
+                {{ status_badge(i.status, i.status_label) }}
+                {{ priority_badge(i) }}
+                {% if i.issue_code %}<span class="text-xs text-slate-500 bg-slate-100 rounded px-2 py-0.5">{{ i.issue_code }}</span>{% endif %}
+                <span class="text-xs text-slate-400">#{{ i.id }}</span>
+            </div>
+            <h1 class="text-2xl font-semibold tracking-tight">{{ i.project_name }}</h1>
+        </div>
+        <div class="flex gap-2 shrink-0">
+            {% if can_manage %}
+            <a href="#updates" onclick="setTimeout(() => document.getElementById('body').focus(), 50)" class="btn btn-secondary">Post update</a>
+            <a href="{{ url_for('edit_initiative', initiative_id=i.id) }}" class="btn btn-primary">Edit</a>
+            {% endif %}
+            {% if login.is_valid and login.is_admin %}
+            <button type="button" onclick="document.getElementById('deleteModal').classList.remove('hidden')" class="btn btn-secondary !text-red-600">Delete</button>
+            {% endif %}
+        </div>
+    </div>
+
+    <dl class="grid grid-cols-2 md:grid-cols-5 gap-4 mt-6 pt-6 border-t border-slate-100">
+        <div class="col-span-2 md:col-span-1">
+            <dt class="text-xs font-medium text-slate-500 uppercase tracking-wide">Responsible</dt>
+            <dd class="mt-1 flex flex-wrap gap-1">
+                {% for p in i.responsible|people %}
+                <span class="inline-flex items-center gap-1.5 text-sm font-medium bg-slate-100 rounded-full pl-0.5 pr-2.5 py-0.5">
+                    <span class="w-5 h-5 rounded-full bg-brand text-white text-[10px] flex items-center justify-center uppercase">{{ p[:1] }}</span>{{ p }}
+                </span>
+                {% else %}<span class="font-medium">Unassigned</span>{% endfor %}
+            </dd>
+        </div>
+        <div>
+            <dt class="text-xs font-medium text-slate-500 uppercase tracking-wide">Priority</dt>
+            <dd class="mt-1 font-medium">{{ i.priority_label }}</dd>
+        </div>
+        <div>
+            <dt class="text-xs font-medium text-slate-500 uppercase tracking-wide">Start date</dt>
+            <dd class="mt-1 font-medium">{{ i.start_display }}</dd>
+        </div>
+        <div>
+            <dt class="text-xs font-medium text-slate-500 uppercase tracking-wide">ETA</dt>
+            <dd class="mt-1 font-medium {{ 'text-red-600' if i.is_overdue }}">{{ i.eta_display }}</dd>
+            <dd>{{ eta_badge(i) }}</dd>
+        </div>
+        <div>
+            <dt class="text-xs font-medium text-slate-500 uppercase tracking-wide">Last update</dt>
+            <dd class="mt-1 font-medium">{{ i.last_edited_by or '—' }}</dd>
+            <dd class="text-xs text-slate-500">{{ i.last_edited_at or '' }}</dd>
+        </div>
+    </dl>
+
+    {% if i.time_progress is not none %}
+    <div class="mt-6">
+        <div class="flex justify-between text-xs text-slate-500 mb-1">
+            <span>Timeline</span>
+            <span>{{ i.time_progress }}% of planned time elapsed</span>
+        </div>
+        <div class="h-2 bg-slate-100 rounded-full overflow-hidden">
+            <div class="h-full rounded-full {{ 'bg-emerald-500' if i.is_done else ('bg-red-500' if i.is_overdue else 'bg-brand') }}" style="width: {{ i.time_progress }}%"></div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<div class="grid lg:grid-cols-3 gap-6">
+    <div class="lg:col-span-2 space-y-6">
+        <section class="bg-white border border-slate-200 rounded-xl p-6">
+            <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">Description</h2>
+            <div class="text-slate-700 whitespace-pre-line leading-relaxed">{{ i.description or 'No description provided.' }}</div>
+        </section>
+
+        <!-- Impact -->
+        <section class="bg-white border border-slate-200 rounded-xl p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wide">Impact</h2>
+                {% if can_manage and metrics %}<a href="{{ url_for('edit_initiative', initiative_id=i.id) }}#impact" class="text-xs text-brand hover:underline">Edit</a>{% endif %}
+            </div>
+            {% if metrics %}
+            <div class="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
+                {% for m in metrics %}
+                <div class="rounded-lg border border-slate-200 p-4 {{ 'opacity-60' if not m.is_active }}" title="{{ m.help_text or '' }}">
+                    <div class="text-xs text-slate-500">{{ m.name }}</div>
+                    {% if m.kind == 'before_after' %}
+                    <div class="mt-1 flex items-baseline gap-2">
+                        <span class="text-slate-400 text-sm">{{ fmt_num(m.value_before) if m.value_before is not none else '—' }}</span>
+                        <span class="text-slate-400">&rarr;</span>
+                        <span class="text-xl font-semibold">{{ fmt_num(m.value_after) if m.value_after is not none else '—' }}</span>
+                        <span class="text-sm text-slate-500">{{ m.unit or '' }}</span>
+                    </div>
+                    {% if m.value_before is not none and m.value_after is not none %}
+                    {% set delta = m.value_after - m.value_before %}
+                    <div class="text-xs mt-1 font-medium {{ 'text-emerald-600' if delta > 0 else ('text-red-600' if delta < 0 else 'text-slate-500') }}">
+                        {{ '+' if delta > 0 }}{{ fmt_num(delta) }} {{ m.unit or '' }}
+                    </div>
+                    {% endif %}
+                    {% else %}
+                    <div class="mt-1"><span class="text-xl font-semibold">{{ fmt_num(m.value_after) }}</span> <span class="text-sm text-slate-500">{{ m.unit or '' }}</span></div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-sm text-slate-500">No impact measured yet.
+                {% if can_manage %}<a href="{{ url_for('edit_initiative', initiative_id=i.id) }}#impact" class="text-brand hover:underline">Add impact figures</a> – they show management what the initiative delivered.{% endif %}
+            </p>
+            {% endif %}
+        </section>
+
+        <!-- Updates timeline -->
+        <section id="updates" class="bg-white border border-slate-200 rounded-xl p-6">
+            <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-4">Updates <span class="text-slate-400 font-normal">({{ updates|length }})</span></h2>
+
+            {% if can_manage %}
+            <form method="post" action="{{ url_for('add_update', initiative_id=i.id) }}" class="mb-6 rounded-lg border border-slate-200 bg-slate-50 p-4">
+                <textarea id="body" name="body" rows="3" placeholder="What happened since the last update? Any blockers or next steps?" class="!bg-white"></textarea>
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-3">
+                    <label class="flex items-center gap-2 text-sm text-slate-600">
+                        Status
+                        <select name="status" class="!w-auto !py-1.5 !bg-white">
+                            {% if i.status not in STATUSES|map('first')|list %}<option value="{{ i.status }}" selected>{{ i.status_label }} (current)</option>{% endif %}
+                            {% for value, label in STATUSES %}
+                            <option value="{{ value }}" {{ 'selected' if i.status == value }}>{{ label }}{{ ' (current)' if i.status == value }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    <button type="submit" class="btn btn-primary">Post update</button>
+                </div>
+            </form>
+            {% elif not login.is_valid %}
+            <p class="text-sm text-slate-500 mb-4"><a href="{{ url_for('login') }}" class="text-brand hover:underline">Sign in</a> to post updates (responsible people and admins).</p>
+            {% endif %}
+
+            {% if updates %}
+            <ol class="relative border-l-2 border-slate-100 ml-3 space-y-6">
+                {% for u in updates %}
+                <li class="pl-6 relative group">
+                    <span class="absolute -left-[13px] top-0 w-6 h-6 rounded-full bg-brand text-white text-[10px] font-semibold flex items-center justify-center uppercase ring-4 ring-white">{{ (u.author_name or '?')[:1] }}</span>
+                    <div class="flex items-center justify-between gap-2">
+                        <div class="text-xs text-slate-500">
+                            <span class="font-medium text-slate-700">{{ u.author_name or 'Unknown' }}</span>
+                            &middot; {{ u.created_at[:16] if u.created_at else 'date unknown' }}
+                            {% if u.imported %}<span class="ml-1 text-slate-400" title="Imported from the former 'Comments / Status' field">· earlier notes</span>{% endif %}
+                        </div>
+                        {% if login.is_valid and (login.is_admin or u.author == login.user) %}
+                        <form method="post" action="{{ url_for('delete_update', update_id=u.id) }}" onsubmit="return confirm('Delete this update?')" class="opacity-0 group-hover:opacity-100 transition">
+                            <button class="text-xs text-slate-400 hover:text-red-600">Delete</button>
+                        </form>
+                        {% endif %}
+                    </div>
+                    {% if u.status_change %}
+                    {% set sc = u.status_change.split('|') %}
+                    <div class="mt-1 text-xs">Status: {{ STATUS_LABELS.get(sc[0], sc[0]) or '—' }} &rarr; {{ status_badge(sc[1], STATUS_LABELS.get(sc[1], sc[1])) }}</div>
+                    {% endif %}
+                    {% if u.body %}
+                    <div class="mt-1.5 text-sm text-slate-700 whitespace-pre-line leading-relaxed">{{ u.body }}</div>
+                    {% endif %}
+                </li>
+                {% endfor %}
+            </ol>
+            {% else %}
+            <p class="text-sm text-slate-500">No updates yet.</p>
+            {% endif %}
+        </section>
+    </div>
+
+    <section class="bg-white border border-slate-200 rounded-xl p-6 self-start">
+        <h2 class="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-4">Change history</h2>
+        {% if history %}
+        <ol class="relative border-l border-slate-200 ml-1.5 space-y-5">
+            {% for h in history %}
+            <li class="pl-5">
+                <span class="absolute -left-[5px] mt-1.5 w-2.5 h-2.5 rounded-full {{ 'bg-emerald-500' if h.action == 'created' else 'bg-brand' }}"></span>
+                <div class="text-xs text-slate-500">{{ h.changed_at }} &middot; <span class="font-medium text-slate-700">{{ h.changed_by }}</span></div>
+                {% if h.action == 'created' %}
+                <div class="text-sm mt-0.5">Created the initiative</div>
+                {% else %}
+                <div class="text-sm mt-0.5">Changed <span class="font-medium">{{ field_label(h.field) }}</span></div>
+                {% if h.field == 'status' %}
+                <div class="text-xs mt-1">{{ STATUS_LABELS.get(h.old_value, h.old_value) or '—' }} &rarr; <span class="font-medium">{{ STATUS_LABELS.get(h.new_value, h.new_value) }}</span></div>
+                {% elif h.field in ('description', 'status_comment') %}
+                <details class="text-xs mt-1 text-slate-600">
+                    <summary class="cursor-pointer text-brand">Show change</summary>
+                    <div class="mt-1 line-through text-slate-400 whitespace-pre-line">{{ h.old_value or '—' }}</div>
+                    <div class="mt-1 whitespace-pre-line">{{ h.new_value or '—' }}</div>
+                </details>
+                {% else %}
+                <div class="text-xs mt-1 text-slate-600">
+                    {% if not h.old_value %}Set to {{ h.new_value }}
+                    {% elif not h.new_value %}Cleared (was {{ h.old_value }})
+                    {% else %}<span class="line-through text-slate-400">{{ h.old_value }}</span> &rarr; {{ h.new_value }}{% endif %}
+                </div>
+                {% endif %}
+                {% endif %}
+            </li>
+            {% endfor %}
+        </ol>
+        {% else %}
+        <p class="text-sm text-slate-500">No recorded changes yet. History is tracked from version 2.0 onwards.</p>
+        {% endif %}
+    </section>
+</div>
+
+{% if login.is_valid and login.is_admin %}
+<div id="deleteModal" class="modal hidden fixed inset-0 bg-ink/50 flex items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-xl shadow-xl p-6 w-full max-w-md">
+        <h2 class="text-lg font-semibold mb-2">Delete initiative?</h2>
+        <p class="text-sm text-slate-600 mb-6"><span class="font-medium">{{ i.project_name }}</span> with its updates, impact figures and history will be permanently removed.</p>
+        <form method="post" action="{{ url_for('delete_initiative', initiative_id=i.id) }}" class="flex justify-end gap-2">
+            <button type="button" onclick="this.closest('.modal').classList.add('hidden')" class="btn btn-secondary">Cancel</button>
+            <button type="submit" class="btn btn-danger">Delete</button>
+        </form>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
