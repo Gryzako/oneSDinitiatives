@@ -66,7 +66,7 @@
         <option value="">All people</option>
         {% for r in responsibles %}<option>{{ r }}</option>{% endfor %}
     </select>
-    <select id="fSort" class="lg:!w-44" onchange="applyFilters()">
+    <select id="fSort" class="lg:!w-48" onchange="applyFilters()">
         <option value="recent">Recently updated</option>
         <option value="eta">ETA (soonest)</option>
         <option value="name">Name A–Z</option>
@@ -76,7 +76,7 @@
     <label class="flex items-center gap-2 text-sm text-slate-600 whitespace-nowrap px-1">
         <input id="fHideDone" type="checkbox" class="rounded" onchange="savePrefs(); applyFilters()"> Hide done
     </label>
-    <div class="flex rounded-lg border border-slate-300 overflow-hidden shrink-0">
+    <div class="flex rounded-lg border border-slate-300 overflow-hidden shrink-0 h-[2.625rem]">
         <button type="button" id="vCards" onclick="setView('cards')" class="px-3 py-2 text-sm" title="Card view">▦</button>
         <button type="button" id="vTable" onclick="setView('table')" class="px-3 py-2 text-sm border-l border-slate-300" title="Table view">☰</button>
     </div>
@@ -191,8 +191,8 @@ function setView(v) {
     localStorage.setItem('initView', v);
     $('cardsView').classList.toggle('hidden', v !== 'cards');
     $('tableView').classList.toggle('hidden', v !== 'table');
-    $('vCards').className = 'px-3 py-2 text-sm ' + (v === 'cards' ? 'bg-brand text-white' : 'bg-white');
-    $('vTable').className = 'px-3 py-2 text-sm border-l border-slate-300 ' + (v === 'table' ? 'bg-brand text-white' : 'bg-white');
+    $('vCards').className = 'px-3.5 text-sm ' + (v === 'cards' ? 'bg-brand text-white' : 'bg-white');
+    $('vTable').className = 'px-3.5 text-sm border-l border-slate-300 ' + (v === 'table' ? 'bg-brand text-white' : 'bg-white');
 }
 
 function applyFilters() {
@@ -248,7 +248,7 @@ document.addEventListener('keydown', e => {
     if (e.key === '/' && !['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) { e.preventDefault(); $('q').focus(); }
 });
 
-setView(localStorage.getItem('initView') || 'cards');
+setView(localStorage.getItem('initView') || 'table');
 $('fHideDone').checked = localStorage.getItem('initHideDone') !== '0';  // active work first by default
 applyFilters();
 </script>
